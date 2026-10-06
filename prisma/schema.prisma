@@ -136,6 +136,11 @@ model InstagramAccount {
   accessToken       String
   tokenExpiresAt    DateTime?
   webhookSubscribed Boolean  @default(false)
+  // Facebook Page linked to this Instagram account (TYE addition). Comments on
+  // the Page's cross-posts run the same campaigns via Messenger private replies.
+  facebookPageId    String?  @unique
+  facebookPageName  String?
+  facebookPageToken String?
   connectedAt       DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
         provider: true,
         tokenExpiresAt: true,
         webhookSubscribed: true,
+        facebookPageName: true,
       },
     }),
     prisma.automation.count({ where: { workspaceId, ...accountFilter } }),

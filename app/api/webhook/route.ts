@@ -5,6 +5,7 @@ import {
   verifyWebhookSignature,
 } from "@/lib/meta/webhook";
 import { processInstagramWebhook } from "@/lib/queue/process-webhook";
+import { processFacebookPageWebhook, type PageWebhookPayload } from "@/lib/facebook/process-webhook";
 
 
 export async function GET(request: NextRequest) {
@@ -59,6 +60,16 @@ export async function POST(request: NextRequest) {
       { success: false, error: "Invalid JSON" },
       { status: 400 }
     );
+  }
+
+  // TYE: Facebook Page comments and Messenger button taps.
+  if ((payload as { object?: string })?.object === "page") {
+    try {
+      await processFacebookPageWebhook(payload as PageWebhookPayload);
+    } catch {
+      // Always 200 so Meta does not disable the subscription; errors are logged.
+    }
+    return NextResponse.json({ success: true });
   }
 
   try {

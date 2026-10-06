@@ -227,6 +227,14 @@ export default function SettingsPage() {
           >
             {t("Connect using your own Meta app")}
           </a>
+          <a
+            href="/api/facebook/connect"
+            className="px-4 py-2 rounded text-sm font-medium transition-colors border border-border text-foreground hover:bg-surface-hover"
+          >
+            {data?.instagramAccounts?.some((a) => (a as { facebookPageName?: string | null }).facebookPageName)
+              ? `Facebook Page: ${(data.instagramAccounts.find((a) => (a as { facebookPageName?: string | null }).facebookPageName) as { facebookPageName?: string }).facebookPageName} (reconnect)`
+              : "Connect Facebook Page"}
+          </a>
         </div>
       </section>
 
