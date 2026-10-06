@@ -7,7 +7,7 @@ import {
 } from "@/lib/instagram/provider";
 
 function isReel(media: InstagramMedia): boolean {
-  return media.media_product_type === "REELS";
+  return Boolean(media.id); // any post type: reels, carousels and photos (TYE change)
 }
 
 export type AttachNextReelResult = {
