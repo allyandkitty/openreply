@@ -136,6 +136,9 @@ export const FACEBOOK_PAGE_SCOPES = [
   "pages_read_engagement",
   "pages_manage_engagement",
   "business_management",
+  // TYE: without instagram_basic, me/accounts leaves out instagram_business_account,
+  // so no Page can be matched to the Instagram account (facebook=no_match).
+  "instagram_basic",
 ];
 
 export function getFacebookAuthorizeUrl({ appId, redirectUri, state, configId }: { appId: string; redirectUri: string; state: string; configId?: string }) {
@@ -163,11 +166,12 @@ export async function exchangeFacebookCode({ appId, appSecret, redirectUri, code
   return long.access_token ?? short.access_token;
 }
 
-export type FacebookPage = { id: string; name: string; access_token: string; instagram_business_account?: { id: string } };
+export type FacebookPage = { id: string; name: string; access_token: string; instagram_business_account?: { id: string; username?: string } };
 
 export async function listFacebookPages(userToken: string): Promise<FacebookPage[]> {
   const res = await graphRequest<{ data: FacebookPage[] }>("me/accounts", userToken, {
-    query: { fields: "id,name,access_token,instagram_business_account", limit: "100" },
+    // TYE: ask for the username too, so the callback can match on it if the IDs differ.
+    query: { fields: "id,name,access_token,instagram_business_account{id,username}", limit: "100" },
   });
   return res.data ?? [];
 }

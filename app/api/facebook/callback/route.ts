@@ -37,7 +37,13 @@ export async function GET(request: NextRequest) {
 
     const linked: string[] = [];
     for (const account of accounts) {
-      const page = pages.find((p) => p.instagram_business_account?.id === account.instagramId);
+      // TYE: match on the Instagram ID, or on the username in case Instagram Login stored a different ID type.
+      const igUsername = account.username?.toLowerCase();
+      const page = pages.find(
+        (p) =>
+          p.instagram_business_account?.id === account.instagramId ||
+          (!!igUsername && p.instagram_business_account?.username?.toLowerCase() === igUsername)
+      );
       if (!page) continue;
       let subscribed = false;
       try {
