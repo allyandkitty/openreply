@@ -63,7 +63,11 @@ function linkButtons(automation: LoadedAutomation, recipientToken: string): FbBu
   }));
 }
 
-/** The link message: same wording as Instagram, with the link inline and as a button. */
+/**
+ * The link message. TYE: matches Instagram — wording without the raw tracking
+ * URL, link behind the button only. The inline-link text is used only if Meta
+ * rejects the button message.
+ */
 async function sendReveal({
   pageId,
   pageToken,
@@ -86,11 +90,17 @@ async function sendReveal({
     trackedLinks: automation.trackedLinks,
     recipientToken: token,
   });
-  if (buttons.length && withLink.length <= 640) {
+  // TYE: button text without the raw link, same as the Instagram worker.
+  const buttonText =
+    renderMessageWithoutLink({ message: automation.dmMessage, commenterName }) ||
+    "Here's your link:";
+  if (buttons.length && buttonText.length <= 640) {
     try {
-      return await sendPageMessage({ pageId, pageToken, recipient, text: withLink, buttons });
-    } catch {
+      return await sendPageMessage({ pageId, pageToken, recipient, text: buttonText, buttons });
+    } catch (buttonError) {
       // Fall back to plain text below (links in Messenger text are still tappable).
+      // TYE: log why, so a raw-link DM can be traced in the Vercel logs.
+      console.warn("[facebook] button DM rejected, sending text with link instead:", buttonError);
     }
   }
   const text = buttons.length
