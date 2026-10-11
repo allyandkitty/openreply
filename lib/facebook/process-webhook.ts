@@ -244,12 +244,14 @@ async function handleComment(pageId: string, value: FeedValue) {
 }
 
 async function handlePostback(pageId: string, senderId: string, payload: string) {
-  if (!payload.startsWith(REVEAL_PREFIX)) return;
+  // TYE: log every early exit so a "tap did nothing" can be traced in Vercel logs.
+  console.log("[facebook] tap received", { pageId, payload });
+  if (!payload.startsWith(REVEAL_PREFIX)) return void console.warn("[facebook] tap skipped: payload is not a reveal button", { payload });
   const automationId = payload.slice(REVEAL_PREFIX.length);
   const account = await loadAccount(pageId);
-  if (!account?.facebookPageToken) return;
+  if (!account?.facebookPageToken) return void console.warn("[facebook] tap skipped: no connected account for page", { pageId });
   const automation = (await loadAutomations(account.id)).find((a) => a.id === automationId);
-  if (!automation) return;
+  if (!automation) return void console.warn("[facebook] tap skipped: campaign not found or paused", { automationId });
   const pageToken = decryptToken(account.facebookPageToken);
   const tapId = `fb_tap_${senderId}`;
   try {
@@ -263,20 +265,36 @@ async function handlePostback(pageId: string, senderId: string, payload: string)
         commentText: "(button tap)",
         commentId: tapId,
         status: "PENDING",
+        attempts: 1,
       },
     });
   } catch {
-    return; // already delivered to this person for this campaign
+    // TYE: this person already tapped for this campaign. Re-send the link
+    // (they may have lost it), but ignore a repeat within 60 seconds so a
+    // double-tap or a Meta webhook retry doesn't send it twice.
+    const existing = await prisma.dmLog.findUnique({
+      where: { automationId_commentId: { automationId: automation.id, commentId: tapId } },
+      select: { updatedAt: true, attempts: true },
+    });
+    if (!existing || Date.now() - existing.updatedAt.getTime() < 60_000) {
+      return void console.warn("[facebook] tap skipped: repeat within 60s");
+    }
+    console.log("[facebook] tap repeat: re-sending link", { attempt: existing.attempts + 1 });
+    await prisma.dmLog.update({
+      where: { automationId_commentId: { automationId: automation.id, commentId: tapId } },
+      data: { status: "PENDING", attempts: existing.attempts + 1, errorMessage: null },
+    });
   }
   let errorMessage: string | null = null;
   try {
     await sendReveal({ pageId, pageToken, recipient: { id: senderId }, automation });
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : "Facebook send failed";
+    console.error("[facebook] link message failed", errorMessage);
   }
   await prisma.dmLog.update({
     where: { automationId_commentId: { automationId: automation.id, commentId: tapId } },
-    data: { status: errorMessage ? "FAILED" : "SENT", attempts: 1, dmSentAt: errorMessage ? null : new Date(), errorMessage },
+    data: { status: errorMessage ? "FAILED" : "SENT", dmSentAt: errorMessage ? null : new Date(), errorMessage },
   });
 }
 
@@ -295,8 +313,12 @@ export async function processFacebookPageWebhook(payload: PageWebhookPayload) {
     for (const event of entry.messaging ?? []) {
       const senderId = event.sender?.id;
       const postback = event.postback?.payload;
+      // TYE: log what arrived, so missing taps can be diagnosed.
+      console.log("[facebook] messaging event", { page: entry.id, hasPostback: Boolean(postback), fromPage: senderId === entry.id });
       if (senderId && postback && senderId !== entry.id) {
-        await handlePostback(entry.id, senderId, postback).catch(() => {});
+        await handlePostback(entry.id, senderId, postback).catch((error) =>
+          console.error("[facebook] tap handler crashed", String(error))
+        );
       }
     }
   }
